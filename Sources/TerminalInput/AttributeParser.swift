@@ -43,15 +43,15 @@ extension TerminalInput.AnsiFormat {
           case .reset:
             result.append(.reset)
           case .bold:
-            result.append(.bold(attributes.isBold))
+            result.append(.bold(attributes.formats.contains(.isBold)))
           case .faint:
-            result.append(.faint(attributes.isFaint))
+            result.append(.faint(attributes.formats.contains(.isFaint)))
           case .italic:
-            result.append(.italic(attributes.isItalic))
+            result.append(.italic(attributes.formats.contains(.isItalic)))
           case .underlined:
-            result.append(.underlined(attributes.isUnderlined))
+            result.append(.underlined(attributes.formats.contains(.isUnderlined)))
           case .inverse:
-            result.append(.inverse(attributes.isInverse))
+            result.append(.inverse(attributes.formats.contains(.isInverse)))
           case .foreground:
             if let foreground = attributes.foreground {
               result.append(.foreground(foreground))
