@@ -493,9 +493,17 @@ public final class TerminalInput {
           attributes.foreground = .standard( standardColor(from: value - 30) )
           attributes.setAttribute(.foreground, enabled: true)
           if !sawReset { attributes.clearAttribute(.reset) }
+        case 39:
+          attributes.foreground = nil
+          attributes.setAttribute(.foreground, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 40 ... 47:
           attributes.background = .standard( standardColor(from: value - 40) )
           attributes.setAttribute(.background, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
+        case 49:
+          attributes.background = nil
+          attributes.setAttribute(.background, enabled: false)
           if !sawReset { attributes.clearAttribute(.reset) }
         case 90 ... 97:
           attributes.foreground = .bright( standardColor(from: value - 90) )
