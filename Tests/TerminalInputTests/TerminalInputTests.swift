@@ -98,6 +98,62 @@ final class TerminalInputTests: XCTestCase {
     XCTAssertEqual(tokens, [ .meta(.alt("x")) ])
   }
 
+  func testMouseSGRPressParsing () {
+    let data    = Data("\u{001B}[<0;10;5M".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .press,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRReleaseParsing () {
+    let data    = Data("\u{001B}[<0;10;5m".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .release,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRDragWithModifiersParsing () {
+    let data    = Data("\u{001B}[<44;12;8M".utf8)
+    let tokens  = captureTokens(from: data)
+    let modifiers : TerminalInput.MouseEvent.Modifiers = [ .shift, .option ]
+    let event      = TerminalInput.MouseEvent( button: .left,
+                                               action: .drag,
+                                               column: 12,
+                                               row: 8,
+                                               modifiers: modifiers )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRScrollParsing () {
+    let data    = Data("\u{001B}[<64;22;18M".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .scrollUp,
+                                            action: .scroll,
+                                            column: 22,
+                                            row: 18,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseLegacyX10PacketParsing () {
+    let data    = Data([0x1B, 0x5B, 0x4D, 0x20, 0x2A, 0x25])
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .press,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
   func testBufferedCSISequenceAcrossChunks () {
     let input    = TerminalInput()
     var tokens   : [TerminalInput.Token] = []
