@@ -458,68 +458,68 @@ public final class TerminalInput {
         case 1:
           attributes.isBold        = true
           attributes.isReset       = false
-          attributes.boldSpecified = true
+          attributes.mark(.bold)
         case 2:
-          attributes.isFaint        = true
-          attributes.isReset        = false
-          attributes.faintSpecified = true
+          attributes.isFaint       = true
+          attributes.isReset       = false
+          attributes.mark(.faint)
         case 3:
           attributes.isItalic        = true
           attributes.isReset         = false
-          attributes.italicSpecified = true
+          attributes.mark(.italic)
         case 4:
           attributes.isUnderlined        = true
           attributes.isReset             = false
-          attributes.underlinedSpecified = true
+          attributes.mark(.underlined)
         case 7:
-          attributes.isInverse        = true
-          attributes.isReset          = false
-          attributes.inverseSpecified = true
+          attributes.isInverse         = true
+          attributes.isReset           = false
+          attributes.mark(.inverse)
         case 22:
-          attributes.isBold        = false
-          attributes.isFaint       = false
-          attributes.isReset       = false
-          attributes.boldSpecified = true
-          attributes.faintSpecified = true
+          attributes.isBold            = false
+          attributes.isFaint           = false
+          attributes.isReset           = false
+          attributes.mark(.bold)
+          attributes.mark(.faint)
         case 23:
           attributes.isItalic        = false
           attributes.isReset         = false
-          attributes.italicSpecified = true
+          attributes.mark(.italic)
         case 24:
           attributes.isUnderlined        = false
           attributes.isReset             = false
-          attributes.underlinedSpecified = true
+          attributes.mark(.underlined)
         case 27:
-          attributes.isInverse        = false
-          attributes.isReset          = false
-          attributes.inverseSpecified = true
+          attributes.isInverse         = false
+          attributes.isReset           = false
+          attributes.mark(.inverse)
         case 30 ... 37:
-          attributes.foreground           = .standard( standardColor(from: value - 30) )
-          attributes.foregroundSpecified  = true
-          attributes.isReset              = false
+          attributes.foreground = .standard( standardColor(from: value - 30) )
+          attributes.mark(.foreground)
+          attributes.isReset     = false
         case 40 ... 47:
-          attributes.background           = .standard( standardColor(from: value - 40) )
-          attributes.backgroundSpecified  = true
-          attributes.isReset              = false
+          attributes.background = .standard( standardColor(from: value - 40) )
+          attributes.mark(.background)
+          attributes.isReset     = false
         case 90 ... 97:
-          attributes.foreground           = .bright( standardColor(from: value - 90) )
-          attributes.foregroundSpecified  = true
-          attributes.isReset              = false
+          attributes.foreground = .bright( standardColor(from: value - 90) )
+          attributes.mark(.foreground)
+          attributes.isReset     = false
         case 100 ... 107:
-          attributes.background           = .bright( standardColor(from: value - 100) )
-          attributes.backgroundSpecified  = true
-          attributes.isReset              = false
+          attributes.background = .bright( standardColor(from: value - 100) )
+          attributes.mark(.background)
+          attributes.isReset     = false
         case 38:
           if let color = parseExtendedColor(values: values, index: &index) {
-            attributes.foreground          = color
-            attributes.foregroundSpecified = true
-            attributes.isReset             = false
+            attributes.foreground = color
+            attributes.mark(.foreground)
+            attributes.isReset    = false
           }
         case 48:
           if let color = parseExtendedColor(values: values, index: &index) {
-            attributes.background          = color
-            attributes.backgroundSpecified = true
-            attributes.isReset             = false
+            attributes.background = color
+            attributes.mark(.background)
+            attributes.isReset    = false
           }
         default:
           break
@@ -533,22 +533,17 @@ public final class TerminalInput {
   /// ANSI defines SGR 0 as a full reset, so this helper applies the same idea to
   /// the high level structure.
   private func resetAttributes () -> AnsiFormat.Attributes {
-    var attributes = AnsiFormat.Attributes(isReset: true)
-    attributes.didReset            = true
-    attributes.isBold              = false
-    attributes.isFaint             = false
-    attributes.isItalic            = false
-    attributes.isUnderlined        = false
-    attributes.isInverse           = false
-    attributes.foreground          = nil
-    attributes.background          = nil
-    attributes.boldSpecified       = false
-    attributes.faintSpecified      = false
-    attributes.italicSpecified     = false
-    attributes.underlinedSpecified = false
-    attributes.inverseSpecified    = false
-    attributes.foregroundSpecified = false
-    attributes.backgroundSpecified = false
+    var attributes = AnsiFormat.Attributes()
+    attributes.isReset      = true
+    attributes.isBold       = false
+    attributes.isFaint      = false
+    attributes.isItalic     = false
+    attributes.isUnderlined = false
+    attributes.isInverse    = false
+    attributes.foreground   = nil
+    attributes.background   = nil
+    attributes.clearMarks()
+    attributes.mark(.reset)
     return attributes
   }
 
