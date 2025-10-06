@@ -44,6 +44,42 @@ final class TerminalInputTests: XCTestCase {
     XCTAssertEqual(tokens, [ expected ])
   }
 
+  func testSGRParsingTreatsEmptyParameterAsReset () {
+    let data    = Data("\u{001B}[;31m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    let parser   = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed   = parser.parse(attributes: formatToken.attributes)
+    let expected : [TerminalInput.AnsiFormat.Attribute] = [
+      .reset,
+      .foreground(.standard(.red))
+    ]
+
+    XCTAssertEqual(parsed, expected)
+  }
+
+  func testSGRParsingHandlesMultipleEmptyParameters () {
+    let data    = Data("\u{001B}[1;;32m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    let parser   = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed   = parser.parse(attributes: formatToken.attributes)
+    let expected : [TerminalInput.AnsiFormat.Attribute] = [
+      .reset,
+      .foreground(.standard(.green))
+    ]
+
+    XCTAssertEqual(parsed, expected)
+  }
+
   func testCursorPositionResponseParsing () {
     let data    = Data("\u{001B}[12;45R".utf8)
     let tokens  = captureTokens(from: data)

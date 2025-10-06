@@ -317,7 +317,11 @@ public final class TerminalInput {
       case "F":
         return .token( .cursor(.end), finalIndex + 1 )
       case "m":
-        let values = parameter.split(separator: ";").compactMap { Int($0) }
+        let components = parameter.split(separator: ";", omittingEmptySubsequences: false)
+        let values     = components.compactMap { substring -> Int? in
+          if substring.isEmpty { return 0 }
+          return Int(substring)
+        }
         let attributes = parseSGR(values: values)
         return .token( .ansi(AnsiFormat(sequence: sequence, attributes: attributes)), finalIndex + 1 )
       case "R":
@@ -449,67 +453,69 @@ public final class TerminalInput {
       return resetAttributes()
     }
 
-    var index = 0
+    var index    = 0
+    var sawReset = false
     while index < values.count {
       let value = values[index]
       switch value {
         case 0:
           attributes = resetAttributes()
+          sawReset   = true
         case 1:
           attributes.setAttribute(.bold, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 2:
           attributes.setAttribute(.faint, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 3:
           attributes.setAttribute(.italic, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 4:
           attributes.setAttribute(.underlined, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 7:
           attributes.setAttribute(.inverse, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 22:
           attributes.setAttribute(.bold, enabled: false)
           attributes.setAttribute(.faint, enabled: false)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 23:
           attributes.setAttribute(.italic, enabled: false)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 24:
           attributes.setAttribute(.underlined, enabled: false)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 27:
           attributes.setAttribute(.inverse, enabled: false)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 30 ... 37:
           attributes.foreground = .standard( standardColor(from: value - 30) )
           attributes.setAttribute(.foreground, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 40 ... 47:
           attributes.background = .standard( standardColor(from: value - 40) )
           attributes.setAttribute(.background, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 90 ... 97:
           attributes.foreground = .bright( standardColor(from: value - 90) )
           attributes.setAttribute(.foreground, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 100 ... 107:
           attributes.background = .bright( standardColor(from: value - 100) )
           attributes.setAttribute(.background, enabled: true)
-          attributes.clearAttribute(.reset)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 38:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.foreground = color
             attributes.setAttribute(.foreground, enabled: true)
-            attributes.clearAttribute(.reset)
+            if !sawReset { attributes.clearAttribute(.reset) }
           }
         case 48:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.background = color
             attributes.setAttribute(.background, enabled: true)
-            attributes.clearAttribute(.reset)
+            if !sawReset { attributes.clearAttribute(.reset) }
           }
         default:
           break
