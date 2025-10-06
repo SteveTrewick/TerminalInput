@@ -456,70 +456,70 @@ public final class TerminalInput {
         case 0:
           attributes = resetAttributes()
         case 1:
-          attributes.isBold        = true
-          attributes.isReset       = false
+          attributes.formats.insert(.isBold)
+          attributes.formats.remove(.isReset)
           attributes.mark(.bold)
         case 2:
-          attributes.isFaint       = true
-          attributes.isReset       = false
+          attributes.formats.insert(.isFaint)
+          attributes.formats.remove(.isReset)
           attributes.mark(.faint)
         case 3:
-          attributes.isItalic        = true
-          attributes.isReset         = false
+          attributes.formats.insert(.isItalic)
+          attributes.formats.remove(.isReset)
           attributes.mark(.italic)
         case 4:
-          attributes.isUnderlined        = true
-          attributes.isReset             = false
+          attributes.formats.insert(.isUnderlined)
+          attributes.formats.remove(.isReset)
           attributes.mark(.underlined)
         case 7:
-          attributes.isInverse         = true
-          attributes.isReset           = false
+          attributes.formats.insert(.isInverse)
+          attributes.formats.remove(.isReset)
           attributes.mark(.inverse)
         case 22:
-          attributes.isBold            = false
-          attributes.isFaint           = false
-          attributes.isReset           = false
+          attributes.formats.remove(.isBold)
+          attributes.formats.remove(.isFaint)
+          attributes.formats.remove(.isReset)
           attributes.mark(.bold)
           attributes.mark(.faint)
         case 23:
-          attributes.isItalic        = false
-          attributes.isReset         = false
+          attributes.formats.remove(.isItalic)
+          attributes.formats.remove(.isReset)
           attributes.mark(.italic)
         case 24:
-          attributes.isUnderlined        = false
-          attributes.isReset             = false
+          attributes.formats.remove(.isUnderlined)
+          attributes.formats.remove(.isReset)
           attributes.mark(.underlined)
         case 27:
-          attributes.isInverse         = false
-          attributes.isReset           = false
+          attributes.formats.remove(.isInverse)
+          attributes.formats.remove(.isReset)
           attributes.mark(.inverse)
         case 30 ... 37:
           attributes.foreground = .standard( standardColor(from: value - 30) )
           attributes.mark(.foreground)
-          attributes.isReset     = false
+          attributes.formats.remove(.isReset)
         case 40 ... 47:
           attributes.background = .standard( standardColor(from: value - 40) )
           attributes.mark(.background)
-          attributes.isReset     = false
+          attributes.formats.remove(.isReset)
         case 90 ... 97:
           attributes.foreground = .bright( standardColor(from: value - 90) )
           attributes.mark(.foreground)
-          attributes.isReset     = false
+          attributes.formats.remove(.isReset)
         case 100 ... 107:
           attributes.background = .bright( standardColor(from: value - 100) )
           attributes.mark(.background)
-          attributes.isReset     = false
+          attributes.formats.remove(.isReset)
         case 38:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.foreground = color
             attributes.mark(.foreground)
-            attributes.isReset    = false
+            attributes.formats.remove(.isReset)
           }
         case 48:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.background = color
             attributes.mark(.background)
-            attributes.isReset    = false
+            attributes.formats.remove(.isReset)
           }
         default:
           break
@@ -533,13 +533,7 @@ public final class TerminalInput {
   /// ANSI defines SGR 0 as a full reset, so this helper applies the same idea to
   /// the high level structure.
   private func resetAttributes () -> AnsiFormat.Attributes {
-    var attributes = AnsiFormat.Attributes()
-    attributes.isReset      = true
-    attributes.isBold       = false
-    attributes.isFaint      = false
-    attributes.isItalic     = false
-    attributes.isUnderlined = false
-    attributes.isInverse    = false
+    var attributes = AnsiFormat.Attributes(formats: [.isReset])
     attributes.foreground   = nil
     attributes.background   = nil
     attributes.clearMarks()
