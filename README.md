@@ -1,3 +1,156 @@
 # TerminalInput
 
-A description of this package.
+TerminalInput is a Swift package that turns the raw byte stream produced by macOS (and other xterm-compatible) terminals into high level Swift values. It shields applications from the complexity of ANSI escape codes, legacy control characters, mouse tracking protocols, and meta-key combinations so that you can focus on reacting to user intent instead of decoding byte sequences by hand.
+
+## Features at a Glance
+
+* Decodes printable text, control characters, cursor/navigation keys, function keys, meta-key combinations, mouse tracking events, and terminal status responses.
+* Preserves rich styling information by parsing Select Graphic Rendition (SGR) sequences into a friendly `AnsiFormat` structure.
+* Offers detailed error reporting when malformed UTF-8 or unsupported escape sequences are encountered.
+* Works incrementally—feed bytes as they arrive and receive parsed tokens through a callback closure.
+
+## Adding TerminalInput to Your Project
+
+Add TerminalInput as a dependency in your package manifest:
+
+```swift
+// swift-tools-version:5.5
+import PackageDescription
+
+let package = Package(
+  name: "MyApp",
+  dependencies: [
+    .package(url: "https://example.com/TerminalInput.git", from: "1.0.0")
+  ],
+  targets: [
+    .executableTarget(
+      name: "MyApp",
+      dependencies: ["TerminalInput"]
+    )
+  ]
+)
+```
+
+Then import the module in your source files:
+
+```swift
+import TerminalInput
+```
+
+## Quick Start
+
+1. Create a `TerminalInput` instance.
+2. Assign a `dispatch` closure to receive parsed tokens or errors.
+3. Feed terminal data into the parser by calling `enqueue(_:)` with `Data` chunks.
+
+```swift
+import TerminalInput
+
+let input = TerminalInput()
+
+input.dispatch = { result in
+  switch result {
+    case .success(let token):
+      handle(token: token)
+    case .failure(let error):
+      print("Parsing error: \(error)")
+  }
+}
+
+while let bytes = readFromTTY() {
+  input.enqueue(bytes)
+}
+```
+
+## Understanding the Dispatch Pipeline
+
+`TerminalInput` never blocks. Each call to `enqueue(_:)` appends the provided bytes to an internal buffer and repeatedly extracts complete tokens. For every token or error, the parser invokes the `dispatch` closure with a `Result<TerminalInput.Token, TerminalInput.Error>`:
+
+* `.success(Token)` delivers a decoded terminal event.
+* `.failure(Error)` signals malformed UTF-8 (`.invalidUTF8`) or an escape sequence that the parser cannot interpret (`.invalidSequence`).
+
+Your application is free to set the `dispatch` closure to `nil` at any time if you temporarily want to ignore events.
+
+## Public API Reference
+
+### TerminalInput
+
+| Member | Description |
+| --- | --- |
+| `init()` | Creates an empty parser. |
+| `dispatch: ((Result<Token, Error>) -> Void)?` | Callback invoked with each parsed token or error. Assign this before feeding data. |
+| `enqueue(_ bytes: Data)` | Adds a new chunk of terminal bytes to the parser. You may call this repeatedly with partial sequences. |
+
+### Tokens
+
+`TerminalInput.Token` is the core representation of user intent. Each case wraps a more specific type:
+
+* `.text(String)` – Printable characters decoded as UTF-8.
+* `.control(ControlKey)` – ASCII control codes (e.g. `.TAB`, `.RETURN`, `.ESC`).
+* `.cursor(CursorKey)` – Navigation keys such as `.up`, `.down`, `.home`, and `.pageDown`.
+* `.function(FunctionKey)` – Function keys (`.f(1)` through `.f(n)`), `.insert`, `.delete`, and `.unknown` for unusual sequences.
+* `.meta(MetaKey)` – Meta/alt combinations (e.g. `alt("x")`) or the bare escape key.
+* `.response(TerminalResponse)` – Asynchronous replies from the terminal such as cursor position reports or device attributes.
+* `.ansi(AnsiFormat)` – Select Graphic Rendition (SGR) sequences that modify colors and text styles.
+* `.mouse(MouseEvent)` – Pointer interactions including button presses, drags, and scroll events.
+
+### Control and Navigation Enumerations
+
+* `ControlKey` enumerates the classic ASCII control characters from `NULL` through `DEL`.
+* `CursorKey` covers the arrow cluster plus `home`, `end`, `pageUp`, and `pageDown`.
+* `FunctionKey` represents the numbered function keys, insert/delete, or stores the raw sequence when it cannot be classified.
+* `MetaKey` distinguishes between a standalone escape (`.escape`) and an alt-modified character (`.alt(Character)`).
+
+### Terminal Responses
+
+`TerminalResponse` captures structured replies from the terminal:
+
+* `.cursorPosition(row:column:)` – Result of querying the cursor location.
+* `.deviceAttributes(values:isPrivate:)` – Terminal capability report (DECID).
+* `.statusReport(code:)` – Response to Device Status Reports (DSR).
+* `.operatingSystemCommand(code:data:)` – Operating system command (OSC) payloads such as title changes or clipboard operations.
+* `.text(String)` – Any unclassified response, preserving the raw escape text.
+
+### Styling with AnsiFormat
+
+When TerminalInput encounters a Select Graphic Rendition sequence it emits `.ansi(AnsiFormat)`:
+
+* `AnsiFormat.sequence` holds the original escape string—perfect for logging or forwarding to another terminal.
+* `AnsiFormat.attributes` is an `AnsiFormat.Attributes` structure with optional `foreground` and `background` colors. Colors are described via the `Color` enumeration, which supports the eight standard colors, their bright variants, 256-color palette indices, and 24-bit RGB values.
+* The attributes object also records which properties were explicitly modified. Use `AnsiFormat.AttributeParser` to convert attributes into an ordered list of semantic changes (`.bold(true)`, `.foreground(.rgb(...))`, etc.).
+
+### Mouse Tracking
+
+Pointer activity is provided through `MouseEvent`:
+
+* `button` – The button involved in the action (`.left`, `.middle`, `.right`, scroll directions, or `.other(Int)`).
+* `action` – Whether the event was a `.press`, `.release`, `.drag`, or `.scroll`.
+* `row` and `column` – The one-based cursor location reported by the terminal.
+* `modifiers` – OptionSet flags describing Shift, Option/Alt, and Control modifiers that were pressed.
+
+### Error Handling
+
+`TerminalInput.Error` provides two precise failure reasons:
+
+* `.invalidUTF8(Data)` – The parser read bytes that are not valid UTF-8. The attached `Data` contains the offending payload.
+* `.invalidSequence(String)` – An escape sequence deviated from the documented terminal grammar. The string parameter reproduces the raw sequence for debugging.
+
+### Working with Tests
+
+The package includes XCTest coverage under `Tests/TerminalInputTests` that demonstrates how tokens are emitted for various inputs. You can run the test suite with:
+
+```sh
+swift test
+```
+
+These fixtures double as usage examples for constructing terminal byte streams and asserting on the resulting tokens.
+
+## Best Practices
+
+* Always initialise `TerminalInput` on the thread that will receive terminal bytes to avoid synchronisation issues when mutating the buffer.
+* Consider debouncing or batching updates when forwarding `.ansi` tokens to UI layers, especially if the terminal sends many fine-grained style changes.
+* If you need to replay styling information, leverage `AnsiFormat.AttributeParser` to enumerate the specific attribute toggles requested by the terminal.
+
+## Support and Contributions
+
+Bug reports and feature requests are welcome. Please include sample byte sequences or terminal logs so that new behaviours can be reproduced reliably.
