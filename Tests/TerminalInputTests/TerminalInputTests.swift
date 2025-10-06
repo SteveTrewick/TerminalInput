@@ -153,6 +153,38 @@ final class TerminalInputTests: XCTestCase {
     XCTAssertEqual(parsed, [ .bold(false), .faint(false) ])
   }
 
+  func testSGRForegroundDefaultParsing () {
+    let data    = Data("\u{001B}[39m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    XCTAssertNil(formatToken.attributes.foreground)
+    XCTAssertEqual(formatToken.attributes.isAttributeEnabled(.foreground), false)
+
+    let parser = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed = parser.parse(attributes: formatToken.attributes)
+    XCTAssertEqual(parsed, [ .foregroundDefault ])
+  }
+
+  func testSGRBackgroundDefaultParsing () {
+    let data    = Data("\u{001B}[49m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    XCTAssertNil(formatToken.attributes.background)
+    XCTAssertEqual(formatToken.attributes.isAttributeEnabled(.background), false)
+
+    let parser = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed = parser.parse(attributes: formatToken.attributes)
+    XCTAssertEqual(parsed, [ .backgroundDefault ])
+  }
+
   private func captureTokens ( from data: Data ) -> [TerminalInput.Token] {
     let input    = TerminalInput()
     var tokens   : [TerminalInput.Token] = []

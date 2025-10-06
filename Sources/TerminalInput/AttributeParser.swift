@@ -13,7 +13,9 @@ extension TerminalInput.AnsiFormat {
     case underlined(Bool)
     case inverse(Bool)
     case foreground(Attributes.Color)
+    case foregroundDefault
     case background(Attributes.Color)
+    case backgroundDefault
   }
 
   /// Turns the parsed attribute structure into an ordered list of changes.  This
@@ -55,10 +57,14 @@ extension TerminalInput.AnsiFormat {
           case .foreground:
             if let foreground = attributes.foreground {
               result.append(.foreground(foreground))
+            } else if attributes.isAttributeEnabled(.foreground) == false {
+              result.append(.foregroundDefault)
             }
           case .background:
             if let background = attributes.background {
               result.append(.background(background))
+            } else if attributes.isAttributeEnabled(.background) == false {
+              result.append(.backgroundDefault)
             }
         }
       }
