@@ -28,29 +28,39 @@ extension TerminalInput.AnsiFormat {
     /// skipped so that the caller sees only the actions that occurred.
     public func parse ( attributes: Attributes ) -> [Attribute] {
       var result : [Attribute] = []
-      if attributes.didReset || attributes.isReset {
-        result.append(.reset)
-      }
-      if attributes.boldSpecified {
-        result.append(.bold(attributes.isBold))
-      }
-      if attributes.faintSpecified {
-        result.append(.faint(attributes.isFaint))
-      }
-      if attributes.italicSpecified {
-        result.append(.italic(attributes.isItalic))
-      }
-      if attributes.underlinedSpecified {
-        result.append(.underlined(attributes.isUnderlined))
-      }
-      if attributes.inverseSpecified {
-        result.append(.inverse(attributes.isInverse))
-      }
-      if attributes.foregroundSpecified, let foreground = attributes.foreground {
-        result.append(.foreground(foreground))
-      }
-      if attributes.backgroundSpecified, let background = attributes.background {
-        result.append(.background(background))
+      let order : [Attributes.SpecifiedAttribute] = [
+        .reset,
+        .bold,
+        .faint,
+        .italic,
+        .underlined,
+        .inverse,
+        .foreground,
+        .background,
+      ]
+      for attribute in order where attributes.isSpecified(attribute) {
+        switch attribute {
+          case .reset:
+            result.append(.reset)
+          case .bold:
+            result.append(.bold(attributes.isBold))
+          case .faint:
+            result.append(.faint(attributes.isFaint))
+          case .italic:
+            result.append(.italic(attributes.isItalic))
+          case .underlined:
+            result.append(.underlined(attributes.isUnderlined))
+          case .inverse:
+            result.append(.inverse(attributes.isInverse))
+          case .foreground:
+            if let foreground = attributes.foreground {
+              result.append(.foreground(foreground))
+            }
+          case .background:
+            if let background = attributes.background {
+              result.append(.background(background))
+            }
+        }
       }
       return result
     }

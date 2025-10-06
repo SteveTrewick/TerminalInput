@@ -26,14 +26,18 @@ extension TerminalInput.AnsiFormat {
 
     /// Internal bookkeeping so that the parser can tell whether a property was
     /// explicitly set or merely inherited from previous state.
-    internal var didReset            : Bool
-    internal var boldSpecified       : Bool
-    internal var faintSpecified      : Bool
-    internal var italicSpecified     : Bool
-    internal var underlinedSpecified : Bool
-    internal var inverseSpecified    : Bool
-    internal var foregroundSpecified : Bool
-    internal var backgroundSpecified : Bool
+    internal var specified      : Set<SpecifiedAttribute>
+
+    internal enum SpecifiedAttribute : Hashable {
+      case reset
+      case bold
+      case faint
+      case italic
+      case underlined
+      case inverse
+      case foreground
+      case background
+    }
 
     /// Initialiser with defaults that match the “plain text” look.
     public init ( isReset: Bool = false,
@@ -52,14 +56,31 @@ extension TerminalInput.AnsiFormat {
       self.isInverse           = isInverse
       self.foreground          = foreground
       self.background          = background
-      self.didReset            = isReset
-      self.boldSpecified       = isBold
-      self.faintSpecified      = isFaint
-      self.italicSpecified     = isItalic
-      self.underlinedSpecified = isUnderlined
-      self.inverseSpecified    = isInverse
-      self.foregroundSpecified = foreground != nil
-      self.backgroundSpecified = background != nil
+      self.specified           = []
+      if isReset      { mark(.reset) }
+      if isBold       { mark(.bold) }
+      if isFaint      { mark(.faint) }
+      if isItalic     { mark(.italic) }
+      if isUnderlined { mark(.underlined) }
+      if isInverse    { mark(.inverse) }
+      if foreground   != nil { mark(.foreground) }
+      if background   != nil { mark(.background) }
+    }
+
+    internal mutating func mark ( _ attribute: SpecifiedAttribute ) {
+      specified.insert(attribute)
+    }
+
+    internal mutating func unmark ( _ attribute: SpecifiedAttribute ) {
+      specified.remove(attribute)
+    }
+
+    internal mutating func clearMarks () {
+      specified.removeAll()
+    }
+
+    internal func isSpecified ( _ attribute: SpecifiedAttribute ) -> Bool {
+      return specified.contains(attribute)
     }
 
     /// Equality respects only the user-visible aspects so that different
