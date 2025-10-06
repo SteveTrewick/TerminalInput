@@ -29,12 +29,12 @@ public final class TerminalInput {
     case ENQ
     case ACK
     case BEL
-    case BS
-    case HT
+    case BACKSPACE
+    case TAB
     case LF
     case VT
     case FF
-    case CR
+    case RETURN
     case SO
     case SI
     case DLE
@@ -268,12 +268,12 @@ public final class TerminalInput {
       case 0x05 : return .ENQ
       case 0x06 : return .ACK
       case 0x07 : return .BEL
-      case 0x08 : return .BS
-      case 0x09 : return .HT
+      case 0x08 : return .BACKSPACE
+      case 0x09 : return .TAB
       case 0x0A : return .LF
       case 0x0B : return .VT
       case 0x0C : return .FF
-      case 0x0D : return .CR
+      case 0x0D : return .RETURN
       case 0x0E : return .SO
       case 0x0F : return .SI
       case 0x10 : return .DLE
