@@ -11,14 +11,13 @@
       public let activationKey : TerminalInput.ControlKey
       public let handler       : (() -> Void)?
 
-      // STYLERULE: Never split init params, init and function parameters all on one line regardless of length
+      // STYLERULE: Never split init params, init and function parameters all on one line regardless of length, ignore 80 column line length
       public init ( text: String, activationKey: TerminalInput.ControlKey = .RETURN, handler: (() -> Void)? = nil ) {
         self.text          = text
         self.activationKey = activationKey
         self.handler       = handler
       }
-      
-      //
+    
     }
   //STYLERULE : when initialising types or calling functions with long parameter lists, split over multiplt lines, align the colons with the longest parameter name, no space
         return Button (
