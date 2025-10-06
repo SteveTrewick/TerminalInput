@@ -1,15 +1,30 @@
 import Foundation
 
 
+/// `TerminalInput` turns the stream of bytes that arrives from a terminal into a
+/// sequence of easy to understand Swift values.  The goal is to shield the rest
+/// of the application from the confusing details of escape codes, which are the
+/// little signals a terminal uses to describe special keys, colours, or status
+/// reports.  Someone reading the tokens produced by this class never has to
+/// understand the shape of an ANSI escape sequence to react to user input.
 public final class TerminalInput {
 
+  /// Callback that receives every parsed token or error.  You may think of it
+  /// as the delivery belt that carries the decoded results to the rest of the
+  /// program.
   public var dispatch : ( (Result<Token, Error>) -> Void )?
 
+  /// Errors that can occur while decoding the incoming bytes.  They point out
+  /// either malformed text (bad UTF-8) or escape sequences that do not follow
+  /// the rules documented for terminals.
   public enum Error : Swift.Error, Equatable {
     case invalidUTF8(Data)
     case invalidSequence(String)
   }
 
+  /// The kinds of tokens that may be produced while reading the input stream.
+  /// Each case wraps a more specific type that carries the meaning of the
+  /// terminal event.
   public enum Token : Equatable {
     case text(String)
     case control(ControlKey)
@@ -20,6 +35,9 @@ public final class TerminalInput {
     case ansi(AnsiFormat)
   }
 
+  /// Non-printable control characters, such as carriage return and tab.  These
+  /// values come directly from the ASCII control area and represent the oldest
+  /// parts of terminal communication.
   public enum ControlKey : Equatable {
     case NULL
     case SOH
@@ -55,6 +73,8 @@ public final class TerminalInput {
     case DEL
   }
 
+  /// Movement keys that are usually produced by the arrow cluster or the
+  /// navigation block on a keyboard.
   public enum CursorKey : Equatable {
     case up
     case down
@@ -66,6 +86,8 @@ public final class TerminalInput {
     case pageDown
   }
 
+  /// Higher level keys that either correspond to the labelled function keys or
+  /// are utility keys such as insert/delete.
   public enum FunctionKey : Equatable {
     case f(Int)
     case insert
@@ -73,11 +95,16 @@ public final class TerminalInput {
     case unknown(String)
   }
 
+  /// Escape-derived combinations, such as pressing the option/alt key in
+  /// conjunction with a printable character, or the escape key by itself.
   public enum MetaKey : Equatable {
     case alt(Character)
     case escape
   }
 
+  /// Messages sent from the terminal to report internal state.  These are most
+  /// often responses to earlier queries such as “where is the cursor right now?”
+  /// or “what kind of terminal are you?”.
   public enum TerminalResponse : Equatable {
     case cursorPosition(row: Int, column: Int)
     case deviceAttributes(values: [Int], isPrivate: Bool)
@@ -86,28 +113,49 @@ public final class TerminalInput {
     case text(String)
   }
 
+  /// Wrapper for a Select Graphic Rendition (SGR) escape sequence.  The
+  /// `sequence` string contains the exact text that was read from the terminal
+  /// while `attributes` breaks it down into a friendlier structure.
+  /// Reference: Xterm Control Sequences, “Graphics Rendition” section.
+  /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   public struct AnsiFormat : Equatable {
 
+    /// The raw escape sequence, useful when the exact bytes need to be replayed
+    /// to another terminal or logged for inspection.
     public let sequence   : String
+    /// Parsed representation of the stylistic changes requested by the
+    /// sequence.
     public let attributes : Attributes
 
   }
 
+  /// Creates a parser that is ready to receive input.
   public init () { }
 
+  /// Adds a new batch of bytes to the parser.  The terminal can deliver data in
+  /// unpredictable chunks, so this method stores the bytes and then repeatedly
+  /// tries to decode complete tokens.
   public func enqueue ( _ bytes: Data ) {
     buffer.append(bytes)
     processBuffer()
   }
 
+  /// Temporary storage that accumulates bytes until enough information is
+  /// present to produce a token.
   private var buffer : Data = Data()
 
+  /// Represents the outcome of attempting to read a single token from the
+  /// buffer.  A token may be produced, more bytes may be required, or an error
+  /// could be reported together with the number of bytes that were examined.
   private enum ParseResult {
     case token(Token, Int)
     case needMore
     case failure(Error, Int)
   }
 
+  /// Continually pulls tokens from the buffer until there are not enough bytes
+  /// to continue.  Each successful token or error is sent through the dispatch
+  /// callback.
   private func processBuffer () {
     while true {
       let result = parseNextToken()
@@ -124,6 +172,10 @@ public final class TerminalInput {
     }
   }
 
+  /// Decides how to interpret the next byte in the buffer.  Printable text is
+  /// gathered into `Token.text`, control characters are mapped to the
+  /// `ControlKey` enumeration, and escape sequences are delegated to specialised
+  /// helpers.
   private func parseNextToken () -> ParseResult {
     guard let first = buffer.first else { return .needMore }
     if let control = parseControl(first) {
@@ -135,6 +187,9 @@ public final class TerminalInput {
     return parseText()
   }
 
+  /// Converts a raw ASCII control character into the matching `ControlKey`
+  /// value.  Only bytes in the standard control ranges are recognised; all
+  /// others fall back to printable handling.
   private func parseControl ( _ byte: UInt8 ) -> ControlKey? {
     switch byte {
       case 0x00 : return .NULL
@@ -173,6 +228,9 @@ public final class TerminalInput {
     }
   }
 
+  /// Collects consecutive printable characters and turns them into a Swift
+  /// string token.  Any encounter with a control byte ends the text run so that
+  /// a different token can be produced for the special action.
   private func parseText () -> ParseResult {
     var index = 0
     while index < buffer.count {
@@ -197,6 +255,12 @@ public final class TerminalInput {
     return .failure( .invalidUTF8(textData), index )
   }
 
+  /// Interprets the escape character (`ESC`) that introduces higher level
+  /// sequences.  Depending on the second byte the method forwards to the
+  /// correct helper for Control Sequence Introducer (CSI), Single Shift Select
+  /// (SS3), Operating System Command (OSC), or meta key sequences.
+  /// Reference: Xterm Control Sequences, “Escape Sequences” overview.
+  /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   private func parseEscapeSequence () -> ParseResult {
     guard buffer.count > 1 else { return .token( .meta(.escape), 1 ) }
     let indicator = buffer[1]
@@ -208,6 +272,9 @@ public final class TerminalInput {
     }
   }
 
+  /// Handles ALT-modified key presses.  The terminal sends `ESC` followed by
+  /// the actual character, so this method waits for the second byte and then
+  /// emits a `.meta(.alt)` token.
   private func parseMetaSequence () -> ParseResult {
     guard buffer.count > 1 else { return .needMore }
     let indicator = buffer[1]
@@ -220,6 +287,10 @@ public final class TerminalInput {
     return .token( .meta(.alt(character)), length )
   }
 
+  /// Decodes Control Sequence Introducer (CSI) sequences.  These start with the
+  /// characters `ESC [` and contain a final byte that identifies the action.
+  /// Reference: ECMA-48 / ISO 6429 Section 5.4.
+  /// https://www.ecma-international.org/publications-and-standards/standards/ecma-48/
   private func parseCSISequence () -> ParseResult {
     guard let finalIndex = indexOfFinalByte(startingAt: 2) else { return .needMore }
     let finalByte     = buffer[finalIndex]
@@ -268,6 +339,9 @@ public final class TerminalInput {
     }
   }
 
+  /// Parses CSI sequences that end with the tilde character.  These are commonly
+  /// used for keys that do not have a dedicated letter code, such as Insert or
+  /// Page Up.
   private func parseTildeTerminatedSequence ( parameter: String, length: Int ) -> ParseResult {
     guard let code = Int(parameter) else { return .failure( .invalidSequence("CSI ~ with non numeric parameter"), length ) }
     switch code {
@@ -287,6 +361,11 @@ public final class TerminalInput {
     }
   }
 
+  /// Processes SS3 sequences, often produced when the terminal is in “application
+  /// keypad” mode.  They have the form `ESC O <code>` and cover early function
+  /// keys as well as arrow keys in certain modes.
+  /// Reference: Xterm Control Sequences, “SS3 – Single Shift 3”.
+  /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   private func parseSS3Sequence () -> ParseResult {
     guard buffer.count > 2 else { return .needMore }
     let code     = buffer[2]
@@ -306,6 +385,11 @@ public final class TerminalInput {
     }
   }
 
+  /// Parses Operating System Command (OSC) sequences.  These begin with `ESC ]`
+  /// and are terminated either by the BEL character or by `ESC \`.  Terminals
+  /// use OSC codes for tasks such as setting the window title or clipboard.
+  /// Reference: Xterm Control Sequences, “Operating System Commands”.
+  /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   private func parseOSCSequence () -> ParseResult {
     guard let terminatorIndex = indexOfOSCterminator() else { return .needMore }
     let length   = terminatorIndex + 1
@@ -320,6 +404,8 @@ public final class TerminalInput {
     return .token( .response(.operatingSystemCommand(code: code, data: data)), length )
   }
 
+  /// Scans the buffer to find the end of an OSC sequence.  The OSC body is
+  /// terminated either by BEL or by the two-character string `ESC \`.
   private func indexOfOSCterminator () -> Int? {
     var index = 2
     while index < buffer.count {
@@ -335,6 +421,9 @@ public final class TerminalInput {
     return nil
   }
 
+  /// Determines the position of the final byte in a CSI sequence.  The range
+  /// 0x40...0x7E is reserved for these final selectors by ECMA-48, so reaching a
+  /// byte in that range means the sequence is complete.
   private func indexOfFinalByte ( startingAt index: Int ) -> Int? {
     var position = index
     while position < buffer.count {
@@ -347,6 +436,9 @@ public final class TerminalInput {
     return nil
   }
 
+  /// Interprets Select Graphic Rendition (SGR) values, which are the numeric
+  /// parameters found inside a `CSI ... m` sequence.  Each value toggles a
+  /// specific visual property such as bold, underline, or colour.
   private func parseSGR ( values: [Int] ) -> AnsiFormat.Attributes {
     var attributes = AnsiFormat.Attributes()
     if values.isEmpty {
@@ -433,6 +525,9 @@ public final class TerminalInput {
     return attributes
   }
 
+  /// Constructs an attribute set that represents the “clear all styles” state.
+  /// ANSI defines SGR 0 as a full reset, so this helper applies the same idea to
+  /// the high level structure.
   private func resetAttributes () -> AnsiFormat.Attributes {
     var attributes = AnsiFormat.Attributes(isReset: true)
     attributes.didReset            = true
@@ -453,6 +548,11 @@ public final class TerminalInput {
     return attributes
   }
 
+  /// Handles the extended colour modes that follow SGR 38 (foreground) and SGR
+  /// 48 (background).  These cover 256-colour palette indexes and 24-bit RGB
+  /// values.
+  /// Reference: Xterm Control Sequences, “SGR 38;2 and 48;2”.
+  /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   private func parseExtendedColor ( values: [Int], index: inout Int ) -> AnsiFormat.Attributes.Color? {
     guard index + 1 < values.count else { return nil }
     let mode = values[index + 1]
@@ -474,6 +574,9 @@ public final class TerminalInput {
     }
   }
 
+  /// Maps colour codes 0...7 onto the classic ANSI colour palette.  The mapping
+  /// is identical for normal and bright variants, the caller decides which is in
+  /// effect.
   private func standardColor ( from value: Int ) -> AnsiFormat.Attributes.StandardColor {
     return AnsiFormat.Attributes.StandardColor(rawValue: value) ?? .white
   }
