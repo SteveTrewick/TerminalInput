@@ -24,5 +24,8 @@ let package = Package(
         .testTarget(
             name: "TerminalInputTests",
             dependencies: ["TerminalInput"]),
-    ]
+    ],
+    
+    // lets use 5 innit.
+    swiftLanguageVersions: [.v5]
 )
