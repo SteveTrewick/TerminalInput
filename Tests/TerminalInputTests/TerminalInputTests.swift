@@ -35,7 +35,7 @@ final class TerminalInputTests: XCTestCase {
   func testSGRParsing () {
     let data    = Data("\u{001B}[1;31m".utf8)
     let tokens  = captureTokens(from: data)
-    let expectedAttributes = TerminalInput.AnsiFormat.Attributes(isBold: true,
+    let expectedAttributes = TerminalInput.AnsiFormat.Attributes(formats: [.isBold],
                                                                  foreground: .standard(.red))
     let expected = TerminalInput.Token.ansi( TerminalInput.AnsiFormat(sequence: "\u{001B}[1;31m",
                                                                       attributes: expectedAttributes) )
@@ -85,7 +85,7 @@ final class TerminalInputTests: XCTestCase {
     }
 
     XCTAssertEqual(formatToken.sequence, "\u{001B}[1;31m")
-    XCTAssertTrue(formatToken.attributes.isBold)
+    XCTAssertTrue(formatToken.attributes.formats.contains(.isBold))
   }
 
   func testAttributeParserEnumeratesAttributes () {

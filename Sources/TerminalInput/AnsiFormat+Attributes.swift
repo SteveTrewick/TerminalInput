@@ -7,26 +7,27 @@ extension TerminalInput.AnsiFormat {
   /// or foreground colour.
   public struct Attributes : Equatable {
 
-    /// Indicates whether the sequence requested a full reset of prior styling.
-    public var isReset       : Bool
-    /// True when the sequence enables bold text.
-    public var isBold        : Bool
-    /// True when the sequence enables faint (dim) text.
-    public var isFaint       : Bool
-    /// True when the sequence enables italic text.
-    public var isItalic      : Bool
-    /// True when the sequence enables underlined text.
-    public var isUnderlined  : Bool
-    /// True when foreground and background colours should be swapped.
-    public var isInverse     : Bool
+    /// Flags that describe stylistic effects such as bold, underline, or reset.
+    public var formats      : Set<Format>
     /// Optional foreground colour requested by the sequence.
-    public var foreground    : Color?
+    public var foreground   : Color?
     /// Optional background colour requested by the sequence.
-    public var background    : Color?
+    public var background   : Color?
 
     /// Internal bookkeeping so that the parser can tell whether a property was
     /// explicitly set or merely inherited from previous state.
-    internal var specified      : Set<SpecifiedAttribute>
+    internal var specified   : Set<SpecifiedAttribute>
+
+    /// Boolean-style flags expressed as a set so that styles can be added and
+    /// removed without tracking individual booleans.
+    public enum Format : Hashable {
+      case isReset
+      case isBold
+      case isFaint
+      case isItalic
+      case isUnderlined
+      case isInverse
+    }
 
     internal enum SpecifiedAttribute : Hashable {
       case reset
@@ -40,29 +41,19 @@ extension TerminalInput.AnsiFormat {
     }
 
     /// Initialiser with defaults that match the “plain text” look.
-    public init ( isReset: Bool = false,
-                  isBold: Bool = false,
-                  isFaint: Bool = false,
-                  isItalic: Bool = false,
-                  isUnderlined: Bool = false,
-                  isInverse: Bool = false,
+    public init ( formats: Set<Format> = [],
                   foreground: Color? = nil,
                   background: Color? = nil ) {
-      self.isReset             = isReset
-      self.isBold              = isBold
-      self.isFaint             = isFaint
-      self.isItalic            = isItalic
-      self.isUnderlined        = isUnderlined
-      self.isInverse           = isInverse
+      self.formats             = formats
       self.foreground          = foreground
       self.background          = background
       self.specified           = []
-      if isReset      { mark(.reset) }
-      if isBold       { mark(.bold) }
-      if isFaint      { mark(.faint) }
-      if isItalic     { mark(.italic) }
-      if isUnderlined { mark(.underlined) }
-      if isInverse    { mark(.inverse) }
+      if formats.contains(.isReset)      { mark(.reset) }
+      if formats.contains(.isBold)       { mark(.bold) }
+      if formats.contains(.isFaint)      { mark(.faint) }
+      if formats.contains(.isItalic)     { mark(.italic) }
+      if formats.contains(.isUnderlined) { mark(.underlined) }
+      if formats.contains(.isInverse)    { mark(.inverse) }
       if foreground   != nil { mark(.foreground) }
       if background   != nil { mark(.background) }
     }
@@ -87,12 +78,7 @@ extension TerminalInput.AnsiFormat {
     /// bookkeeping states compare as identical when they lead to the same
     /// visual outcome.
     public static func == ( lhs: Attributes, rhs: Attributes ) -> Bool {
-      return lhs.isReset      == rhs.isReset
-          && lhs.isBold       == rhs.isBold
-          && lhs.isFaint      == rhs.isFaint
-          && lhs.isItalic     == rhs.isItalic
-          && lhs.isUnderlined == rhs.isUnderlined
-          && lhs.isInverse    == rhs.isInverse
+      return lhs.formats     == rhs.formats
           && lhs.foreground   == rhs.foreground
           && lhs.background   == rhs.background
     }
