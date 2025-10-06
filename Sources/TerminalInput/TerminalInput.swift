@@ -71,6 +71,44 @@ public final class TerminalInput {
     case RS
     case US
     case DEL
+
+    public init? ( byte: UInt8 ) {
+      switch byte {
+        case 0x00 : self = .NULL
+        case 0x01 : self = .SOH
+        case 0x02 : self = .STX
+        case 0x03 : self = .ETX
+        case 0x04 : self = .EOT
+        case 0x05 : self = .ENQ
+        case 0x06 : self = .ACK
+        case 0x07 : self = .BEL
+        case 0x08 : self = .BACKSPACE
+        case 0x09 : self = .TAB
+        case 0x0A : self = .LF
+        case 0x0B : self = .VT
+        case 0x0C : self = .FF
+        case 0x0D : self = .RETURN
+        case 0x0E : self = .SO
+        case 0x0F : self = .SI
+        case 0x10 : self = .DLE
+        case 0x11 : self = .DC1
+        case 0x12 : self = .DC2
+        case 0x13 : self = .DC3
+        case 0x14 : self = .DC4
+        case 0x15 : self = .NAK
+        case 0x16 : self = .SYN
+        case 0x17 : self = .ETB
+        case 0x18 : self = .CAN
+        case 0x19 : self = .EM
+        case 0x1A : self = .SUB
+        case 0x1C : self = .FS
+        case 0x1D : self = .GS
+        case 0x1E : self = .RS
+        case 0x1F : self = .US
+        case 0x7F : self = .DEL
+        default   : return nil
+      }
+    }
   }
 
   /// Movement keys that are usually produced by the arrow cluster or the
@@ -191,41 +229,7 @@ public final class TerminalInput {
   /// value.  Only bytes in the standard control ranges are recognised; all
   /// others fall back to printable handling.
   private func parseControl ( _ byte: UInt8 ) -> ControlKey? {
-    switch byte {
-      case 0x00 : return .NULL
-      case 0x01 : return .SOH
-      case 0x02 : return .STX
-      case 0x03 : return .ETX
-      case 0x04 : return .EOT
-      case 0x05 : return .ENQ
-      case 0x06 : return .ACK
-      case 0x07 : return .BEL
-      case 0x08 : return .BACKSPACE
-      case 0x09 : return .TAB
-      case 0x0A : return .LF
-      case 0x0B : return .VT
-      case 0x0C : return .FF
-      case 0x0D : return .RETURN
-      case 0x0E : return .SO
-      case 0x0F : return .SI
-      case 0x10 : return .DLE
-      case 0x11 : return .DC1
-      case 0x12 : return .DC2
-      case 0x13 : return .DC3
-      case 0x14 : return .DC4
-      case 0x15 : return .NAK
-      case 0x16 : return .SYN
-      case 0x17 : return .ETB
-      case 0x18 : return .CAN
-      case 0x19 : return .EM
-      case 0x1A : return .SUB
-      case 0x1C : return .FS
-      case 0x1D : return .GS
-      case 0x1E : return .RS
-      case 0x1F : return .US
-      case 0x7F : return .DEL
-      default   : return nil
-    }
+    return ControlKey(byte: byte)
   }
 
   /// Collects consecutive printable characters and turns them into a Swift
