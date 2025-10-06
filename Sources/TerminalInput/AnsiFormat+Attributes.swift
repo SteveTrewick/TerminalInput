@@ -7,27 +7,14 @@ extension TerminalInput.AnsiFormat {
   /// or foreground colour.
   public struct Attributes : Equatable {
 
-    /// Flags that describe stylistic effects such as bold, underline, or reset.
-    public var formats      : Set<Format>
     /// Optional foreground colour requested by the sequence.
-    public var foreground   : Color?
+    public var foreground        : Color?
     /// Optional background colour requested by the sequence.
-    public var background   : Color?
+    public var background        : Color?
 
     /// Internal bookkeeping so that the parser can tell whether a property was
     /// explicitly set or merely inherited from previous state.
-    internal var specified   : Set<SpecifiedAttribute>
-
-    /// Boolean-style flags expressed as a set so that styles can be added and
-    /// removed without tracking individual booleans.
-    public enum Format : Hashable {
-      case isReset
-      case isBold
-      case isFaint
-      case isItalic
-      case isUnderlined
-      case isInverse
-    }
+    internal var attributeStates : [SpecifiedAttribute: Bool]
 
     internal enum SpecifiedAttribute : Hashable {
       case reset
@@ -41,46 +28,42 @@ extension TerminalInput.AnsiFormat {
     }
 
     /// Initialiser with defaults that match the “plain text” look.
-    public init ( formats: Set<Format> = [],
-                  foreground: Color? = nil,
+    public init ( foreground: Color? = nil,
                   background: Color? = nil ) {
-      self.formats             = formats
-      self.foreground          = foreground
-      self.background          = background
-      self.specified           = []
-      if formats.contains(.isReset)      { mark(.reset) }
-      if formats.contains(.isBold)       { mark(.bold) }
-      if formats.contains(.isFaint)      { mark(.faint) }
-      if formats.contains(.isItalic)     { mark(.italic) }
-      if formats.contains(.isUnderlined) { mark(.underlined) }
-      if formats.contains(.isInverse)    { mark(.inverse) }
-      if foreground   != nil { mark(.foreground) }
-      if background   != nil { mark(.background) }
+      self.foreground        = foreground
+      self.background        = background
+      self.attributeStates   = [:]
+      if foreground != nil { setAttribute(.foreground, enabled: true) }
+      if background != nil { setAttribute(.background, enabled: true) }
     }
 
-    internal mutating func mark ( _ attribute: SpecifiedAttribute ) {
-      specified.insert(attribute)
+    internal mutating func setAttribute ( _ attribute: SpecifiedAttribute, enabled: Bool ) {
+      attributeStates[attribute] = enabled
     }
 
-    internal mutating func unmark ( _ attribute: SpecifiedAttribute ) {
-      specified.remove(attribute)
+    internal mutating func clearAttribute ( _ attribute: SpecifiedAttribute ) {
+      attributeStates.removeValue(forKey: attribute)
     }
 
     internal mutating func clearMarks () {
-      specified.removeAll()
+      attributeStates.removeAll()
     }
 
     internal func isSpecified ( _ attribute: SpecifiedAttribute ) -> Bool {
-      return specified.contains(attribute)
+      return attributeStates[attribute] != nil
+    }
+
+    internal func isAttributeEnabled ( _ attribute: SpecifiedAttribute ) -> Bool? {
+      return attributeStates[attribute]
     }
 
     /// Equality respects only the user-visible aspects so that different
     /// bookkeeping states compare as identical when they lead to the same
     /// visual outcome.
     public static func == ( lhs: Attributes, rhs: Attributes ) -> Bool {
-      return lhs.formats     == rhs.formats
-          && lhs.foreground   == rhs.foreground
-          && lhs.background   == rhs.background
+      return lhs.attributeStates == rhs.attributeStates
+          && lhs.foreground      == rhs.foreground
+          && lhs.background      == rhs.background
     }
 
     /// The eight classic colours defined by the ANSI standard.

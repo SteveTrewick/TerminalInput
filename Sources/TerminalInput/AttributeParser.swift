@@ -13,7 +13,9 @@ extension TerminalInput.AnsiFormat {
     case underlined(Bool)
     case inverse(Bool)
     case foreground(Attributes.Color)
+    case foregroundDefault
     case background(Attributes.Color)
+    case backgroundDefault
   }
 
   /// Turns the parsed attribute structure into an ordered list of changes.  This
@@ -43,22 +45,26 @@ extension TerminalInput.AnsiFormat {
           case .reset:
             result.append(.reset)
           case .bold:
-            result.append(.bold(attributes.formats.contains(.isBold)))
+            result.append(.bold(attributes.isAttributeEnabled(.bold) ?? false))
           case .faint:
-            result.append(.faint(attributes.formats.contains(.isFaint)))
+            result.append(.faint(attributes.isAttributeEnabled(.faint) ?? false))
           case .italic:
-            result.append(.italic(attributes.formats.contains(.isItalic)))
+            result.append(.italic(attributes.isAttributeEnabled(.italic) ?? false))
           case .underlined:
-            result.append(.underlined(attributes.formats.contains(.isUnderlined)))
+            result.append(.underlined(attributes.isAttributeEnabled(.underlined) ?? false))
           case .inverse:
-            result.append(.inverse(attributes.formats.contains(.isInverse)))
+            result.append(.inverse(attributes.isAttributeEnabled(.inverse) ?? false))
           case .foreground:
             if let foreground = attributes.foreground {
               result.append(.foreground(foreground))
+            } else if attributes.isAttributeEnabled(.foreground) == false {
+              result.append(.foregroundDefault)
             }
           case .background:
             if let background = attributes.background {
               result.append(.background(background))
+            } else if attributes.isAttributeEnabled(.background) == false {
+              result.append(.backgroundDefault)
             }
         }
       }

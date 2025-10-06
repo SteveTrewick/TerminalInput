@@ -33,6 +33,59 @@ public final class TerminalInput {
     case meta(MetaKey)
     case response(TerminalResponse)
     case ansi(AnsiFormat)
+    case mouse(MouseEvent)
+  }
+
+  /// Representation of a mouse interaction as reported by terminals that
+  /// support the X10, normal tracking, or SGR (1006) mouse modes.  These
+  /// reports capture the pointer location, the button that generated the
+  /// event, and any modifier keys that were active at the time.
+  public struct MouseEvent : Equatable {
+
+    public enum Button : Equatable {
+      case left
+      case middle
+      case right
+      case scrollUp
+      case scrollDown
+      case scrollLeft
+      case scrollRight
+      case other(Int)
+    }
+
+    public enum Action : Equatable {
+      case press
+      case release
+      case drag
+      case scroll
+    }
+
+    public struct Modifiers : OptionSet, Equatable {
+      public let rawValue : Int
+
+      public init ( rawValue: Int ) {
+        self.rawValue = rawValue
+      }
+
+      public static let shift  = Modifiers(rawValue: 1 << 0)
+      public static let option = Modifiers(rawValue: 1 << 1)
+      public static let control = Modifiers(rawValue: 1 << 2)
+    }
+
+    public let button    : Button
+    public let action    : Action
+    public let column    : Int
+    public let row       : Int
+    public let modifiers : Modifiers
+
+    public init ( button: Button, action: Action, column: Int, row: Int, modifiers: Modifiers ) {
+      self.button    = button
+      self.action    = action
+      self.column    = column
+      self.row       = row
+      self.modifiers = modifiers
+    }
+
   }
 
   /// Non-printable control characters, such as carriage return and tab.  These
@@ -303,6 +356,14 @@ public final class TerminalInput {
     let sequence      = String(decoding: sequenceData, as: UTF8.self)
     let parameter     = String(decoding: parameterData, as: UTF8.self)
 
+    if (finalByte == 0x4D || finalByte == 0x6D) && parameter.hasPrefix("<") {
+      return parseSGRMouseSequence(parameter: parameter, finalIndex: finalIndex, finalByte: finalByte, sequence: sequence)
+    }
+
+    if finalByte == 0x4D && parameter.isEmpty {
+      return parseLegacyMouseSequence(finalIndex: finalIndex)
+    }
+
     switch UnicodeScalar(finalByte) {
       case "A":
         return .token( .cursor(.up), finalIndex + 1 )
@@ -317,7 +378,11 @@ public final class TerminalInput {
       case "F":
         return .token( .cursor(.end), finalIndex + 1 )
       case "m":
-        let values = parameter.split(separator: ";").compactMap { Int($0) }
+        let components = parameter.split(separator: ";", omittingEmptySubsequences: false)
+        let values     = components.compactMap { substring -> Int? in
+          if substring.isEmpty { return 0 }
+          return Int(substring)
+        }
         let attributes = parseSGR(values: values)
         return .token( .ansi(AnsiFormat(sequence: sequence, attributes: attributes)), finalIndex + 1 )
       case "R":
@@ -341,6 +406,107 @@ public final class TerminalInput {
       default:
         return .token( .response(.text(sequence)), finalIndex + 1 )
     }
+  }
+
+  /// Decodes SGR (1006) mouse tracking sequences with the form `CSI <Cb;Cx;CyM`
+  /// or `CSI <Cb;Cx;Cym`.  The three parameters represent the button/mask,
+  /// column, and row respectively.
+  private func parseSGRMouseSequence ( parameter: String, finalIndex: Int, finalByte: UInt8, sequence: String ) -> ParseResult {
+    let length      = finalIndex + 1
+    let parameter   = parameter.dropFirst()
+    let components  = parameter.split(separator: ";", omittingEmptySubsequences: false)
+    guard components.count == 3,
+          let code = Int(components[0]),
+          let column = Int(components[1]),
+          let row = Int(components[2]),
+          let event = decodeMouseEvent(code: code, column: column, row: row, finalByte: finalByte) else {
+      return .failure( .invalidSequence(sequence), length )
+    }
+    return .token( .mouse(event), length )
+  }
+
+  /// Parses the legacy X10 / normal tracking mouse packets `ESC [ M cb cx cy`.
+  /// The three bytes following the final `M` encode the button mask and
+  /// coordinates offset by 32.
+  private func parseLegacyMouseSequence ( finalIndex: Int ) -> ParseResult {
+    let length = finalIndex + 4
+    guard buffer.count >= length else { return .needMore }
+
+    let codeByte   = buffer[finalIndex + 1]
+    let columnByte = buffer[finalIndex + 2]
+    let rowByte    = buffer[finalIndex + 3]
+    let code       = Int(codeByte) - 32
+    let column     = Int(columnByte) - 32
+    let row        = Int(rowByte) - 32
+
+    let sequenceData = buffer[0 ..< length]
+    let sequence     = String(decoding: sequenceData, as: UTF8.self)
+
+    guard code >= 0,
+          column >= 0,
+          row >= 0,
+          let event = decodeMouseEvent(code: code, column: column, row: row, finalByte: 0x4D) else {
+      return .failure( .invalidSequence(sequence), length )
+    }
+
+    return .token( .mouse(event), length )
+  }
+
+  private func decodeMouseEvent ( code: Int, column: Int, row: Int, finalByte: UInt8 ) -> MouseEvent? {
+    guard column >= 0, row >= 0 else { return nil }
+
+    let modifiers = mouseModifiers(from: code)
+    let isScroll  = (code & 0x40) != 0
+    let isDrag    = (code & 0x20) != 0
+    let buttonId  = code & 0x03
+
+    if isScroll {
+      let button : MouseEvent.Button
+      switch buttonId {
+        case 0 : button = .scrollUp
+        case 1 : button = .scrollDown
+        case 2 : button = .scrollLeft
+        case 3 : button = .scrollRight
+        default: return nil
+      }
+      return MouseEvent( button: button,
+                         action: .scroll,
+                         column: column,
+                         row: row,
+                         modifiers: modifiers )
+    }
+
+    let button : MouseEvent.Button
+    switch buttonId {
+      case 0 : button = .left
+      case 1 : button = .middle
+      case 2 : button = .right
+      case 3 : button = .other(buttonId)
+      default: return nil
+    }
+
+    let action : MouseEvent.Action
+    if finalByte == 0x6D || buttonId == 3 {
+      action = .release
+    } else if isDrag {
+      action = .drag
+    } else {
+      action = .press
+    }
+
+    return MouseEvent( button: button,
+                       action: action,
+                       column: column,
+                       row: row,
+                       modifiers: modifiers )
+  }
+
+  private func mouseModifiers ( from code: Int ) -> MouseEvent.Modifiers {
+    var modifiers = MouseEvent.Modifiers()
+    if (code & 0x04) != 0 { modifiers.insert(.shift) }
+    if (code & 0x08) != 0 { modifiers.insert(.option) }
+    if (code & 0x10) != 0 { modifiers.insert(.control) }
+    return modifiers
   }
 
   /// Parses CSI sequences that end with the tilde character.  These are commonly
@@ -449,77 +615,77 @@ public final class TerminalInput {
       return resetAttributes()
     }
 
-    var index = 0
+    var index    = 0
+    var sawReset = false
     while index < values.count {
       let value = values[index]
       switch value {
         case 0:
           attributes = resetAttributes()
+          sawReset   = true
         case 1:
-          attributes.formats.insert(.isBold)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.bold)
+          attributes.setAttribute(.bold, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 2:
-          attributes.formats.insert(.isFaint)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.faint)
+          attributes.setAttribute(.faint, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 3:
-          attributes.formats.insert(.isItalic)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.italic)
+          attributes.setAttribute(.italic, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 4:
-          attributes.formats.insert(.isUnderlined)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.underlined)
+          attributes.setAttribute(.underlined, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 7:
-          attributes.formats.insert(.isInverse)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.inverse)
+          attributes.setAttribute(.inverse, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 22:
-          attributes.formats.remove(.isBold)
-          attributes.formats.remove(.isFaint)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.bold)
-          attributes.mark(.faint)
+          attributes.setAttribute(.bold, enabled: false)
+          attributes.setAttribute(.faint, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 23:
-          attributes.formats.remove(.isItalic)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.italic)
+          attributes.setAttribute(.italic, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 24:
-          attributes.formats.remove(.isUnderlined)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.underlined)
+          attributes.setAttribute(.underlined, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 27:
-          attributes.formats.remove(.isInverse)
-          attributes.formats.remove(.isReset)
-          attributes.mark(.inverse)
+          attributes.setAttribute(.inverse, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 30 ... 37:
           attributes.foreground = .standard( standardColor(from: value - 30) )
-          attributes.mark(.foreground)
-          attributes.formats.remove(.isReset)
+          attributes.setAttribute(.foreground, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
+        case 39:
+          attributes.foreground = nil
+          attributes.setAttribute(.foreground, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 40 ... 47:
           attributes.background = .standard( standardColor(from: value - 40) )
-          attributes.mark(.background)
-          attributes.formats.remove(.isReset)
+          attributes.setAttribute(.background, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
+        case 49:
+          attributes.background = nil
+          attributes.setAttribute(.background, enabled: false)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 90 ... 97:
           attributes.foreground = .bright( standardColor(from: value - 90) )
-          attributes.mark(.foreground)
-          attributes.formats.remove(.isReset)
+          attributes.setAttribute(.foreground, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 100 ... 107:
           attributes.background = .bright( standardColor(from: value - 100) )
-          attributes.mark(.background)
-          attributes.formats.remove(.isReset)
+          attributes.setAttribute(.background, enabled: true)
+          if !sawReset { attributes.clearAttribute(.reset) }
         case 38:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.foreground = color
-            attributes.mark(.foreground)
-            attributes.formats.remove(.isReset)
+            attributes.setAttribute(.foreground, enabled: true)
+            if !sawReset { attributes.clearAttribute(.reset) }
           }
         case 48:
           if let color = parseExtendedColor(values: values, index: &index) {
             attributes.background = color
-            attributes.mark(.background)
-            attributes.formats.remove(.isReset)
+            attributes.setAttribute(.background, enabled: true)
+            if !sawReset { attributes.clearAttribute(.reset) }
           }
         default:
           break
@@ -533,11 +699,11 @@ public final class TerminalInput {
   /// ANSI defines SGR 0 as a full reset, so this helper applies the same idea to
   /// the high level structure.
   private func resetAttributes () -> AnsiFormat.Attributes {
-    var attributes = AnsiFormat.Attributes(formats: [.isReset])
+    var attributes = AnsiFormat.Attributes()
     attributes.foreground   = nil
     attributes.background   = nil
     attributes.clearMarks()
-    attributes.mark(.reset)
+    attributes.setAttribute(.reset, enabled: true)
     return attributes
   }
 

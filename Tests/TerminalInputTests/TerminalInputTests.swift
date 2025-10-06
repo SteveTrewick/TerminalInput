@@ -35,11 +35,49 @@ final class TerminalInputTests: XCTestCase {
   func testSGRParsing () {
     let data    = Data("\u{001B}[1;31m".utf8)
     let tokens  = captureTokens(from: data)
-    let expectedAttributes = TerminalInput.AnsiFormat.Attributes(formats: [.isBold],
-                                                                 foreground: .standard(.red))
+    var expectedAttributes = TerminalInput.AnsiFormat.Attributes()
+    expectedAttributes.setAttribute(.bold, enabled: true)
+    expectedAttributes.foreground = .standard(.red)
+    expectedAttributes.setAttribute(.foreground, enabled: true)
     let expected = TerminalInput.Token.ansi( TerminalInput.AnsiFormat(sequence: "\u{001B}[1;31m",
                                                                       attributes: expectedAttributes) )
     XCTAssertEqual(tokens, [ expected ])
+  }
+
+  func testSGRParsingTreatsEmptyParameterAsReset () {
+    let data    = Data("\u{001B}[;31m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    let parser   = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed   = parser.parse(attributes: formatToken.attributes)
+    let expected : [TerminalInput.AnsiFormat.Attribute] = [
+      .reset,
+      .foreground(.standard(.red))
+    ]
+
+    XCTAssertEqual(parsed, expected)
+  }
+
+  func testSGRParsingHandlesMultipleEmptyParameters () {
+    let data    = Data("\u{001B}[1;;32m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    let parser   = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed   = parser.parse(attributes: formatToken.attributes)
+    let expected : [TerminalInput.AnsiFormat.Attribute] = [
+      .reset,
+      .foreground(.standard(.green))
+    ]
+
+    XCTAssertEqual(parsed, expected)
   }
 
   func testCursorPositionResponseParsing () {
@@ -58,6 +96,62 @@ final class TerminalInputTests: XCTestCase {
     let data    = Data([0x1B, 0x78])
     let tokens  = captureTokens(from: data)
     XCTAssertEqual(tokens, [ .meta(.alt("x")) ])
+  }
+
+  func testMouseSGRPressParsing () {
+    let data    = Data("\u{001B}[<0;10;5M".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .press,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRReleaseParsing () {
+    let data    = Data("\u{001B}[<0;10;5m".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .release,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRDragWithModifiersParsing () {
+    let data    = Data("\u{001B}[<44;12;8M".utf8)
+    let tokens  = captureTokens(from: data)
+    let modifiers : TerminalInput.MouseEvent.Modifiers = [ .shift, .option ]
+    let event      = TerminalInput.MouseEvent( button: .left,
+                                               action: .drag,
+                                               column: 12,
+                                               row: 8,
+                                               modifiers: modifiers )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseSGRScrollParsing () {
+    let data    = Data("\u{001B}[<64;22;18M".utf8)
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .scrollUp,
+                                            action: .scroll,
+                                            column: 22,
+                                            row: 18,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
+  }
+
+  func testMouseLegacyX10PacketParsing () {
+    let data    = Data([0x1B, 0x5B, 0x4D, 0x20, 0x2A, 0x25])
+    let tokens  = captureTokens(from: data)
+    let event   = TerminalInput.MouseEvent( button: .left,
+                                            action: .press,
+                                            column: 10,
+                                            row: 5,
+                                            modifiers: [] )
+    XCTAssertEqual(tokens, [ .mouse(event) ])
   }
 
   func testBufferedCSISequenceAcrossChunks () {
@@ -85,7 +179,7 @@ final class TerminalInputTests: XCTestCase {
     }
 
     XCTAssertEqual(formatToken.sequence, "\u{001B}[1;31m")
-    XCTAssertTrue(formatToken.attributes.formats.contains(.isBold))
+    XCTAssertTrue(formatToken.attributes.isAttributeEnabled(.bold) ?? false)
   }
 
   func testAttributeParserEnumeratesAttributes () {
@@ -113,6 +207,38 @@ final class TerminalInputTests: XCTestCase {
     let parser = TerminalInput.AnsiFormat.AttributeParser()
     let parsed = parser.parse(attributes: formatToken.attributes)
     XCTAssertEqual(parsed, [ .bold(false), .faint(false) ])
+  }
+
+  func testSGRForegroundDefaultParsing () {
+    let data    = Data("\u{001B}[39m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    XCTAssertNil(formatToken.attributes.foreground)
+    XCTAssertEqual(formatToken.attributes.isAttributeEnabled(.foreground), false)
+
+    let parser = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed = parser.parse(attributes: formatToken.attributes)
+    XCTAssertEqual(parsed, [ .foregroundDefault ])
+  }
+
+  func testSGRBackgroundDefaultParsing () {
+    let data    = Data("\u{001B}[49m".utf8)
+    let tokens  = captureTokens(from: data)
+    guard case let .ansi(formatToken) = tokens.first else {
+      XCTFail("Expected ANSI token")
+      return
+    }
+
+    XCTAssertNil(formatToken.attributes.background)
+    XCTAssertEqual(formatToken.attributes.isAttributeEnabled(.background), false)
+
+    let parser = TerminalInput.AnsiFormat.AttributeParser()
+    let parsed = parser.parse(attributes: formatToken.attributes)
+    XCTAssertEqual(parsed, [ .backgroundDefault ])
   }
 
   private func captureTokens ( from data: Data ) -> [TerminalInput.Token] {
