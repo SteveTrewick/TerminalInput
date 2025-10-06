@@ -168,6 +168,7 @@ public final class TerminalInput {
 
     }
 
+    //TODO: extract this
     public enum Attribute : Equatable {
       case reset
       case bold(Bool)
@@ -179,6 +180,7 @@ public final class TerminalInput {
       case background(Attributes.Color)
     }
 
+    //TODO: extract this
     public struct AttributeParser {
 
       public init () { }
