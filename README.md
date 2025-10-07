@@ -100,7 +100,7 @@ Your application is free to set the `dispatch` closure to `nil` at any time if y
 
 ### Control and Navigation Enumerations
 
-* `ControlKey` enumerates the classic ASCII control characters from `NULL` through `DEL`.
+* `ControlKey` enumerates the classic ASCII control characters from `NULL` through `DEL` and can surface the glyph used in the canonical control chord via the `controlChord` property for presentation or logging.
 * `CursorKey` covers the arrow cluster plus `home`, `end`, `pageUp`, and `pageDown`.
 * `FunctionKey` represents the numbered function keys, insert/delete, or stores the raw sequence when it cannot be classified.
 * `MetaKey` represents an alt-modified character (`.alt(Character)`).

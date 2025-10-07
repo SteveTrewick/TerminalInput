@@ -76,6 +76,43 @@ public final class TerminalInput {
     case US
     case DEL
 
+    public var controlChord : Character? {
+      switch self {
+        case .NULL      : return "@"
+        case .SOH       : return "A"
+        case .STX       : return "B"
+        case .ETX       : return "C"
+        case .EOT       : return "D"
+        case .ENQ       : return "E"
+        case .ACK       : return "F"
+        case .BEL       : return "G"
+        case .BACKSPACE : return "H"
+        case .TAB       : return "I"
+        case .LF        : return "J"
+        case .VT        : return "K"
+        case .FF        : return "L"
+        case .RETURN    : return "M"
+        case .SO        : return "N"
+        case .SI        : return "O"
+        case .DLE       : return "P"
+        case .DC1       : return "Q"
+        case .DC2       : return "R"
+        case .DC3       : return "S"
+        case .DC4       : return "T"
+        case .NAK       : return "U"
+        case .SYN       : return "V"
+        case .ETB       : return "W"
+        case .CAN       : return "X"
+        case .EM        : return "Y"
+        case .SUB       : return "Z"
+        case .FS        : return "\\"
+        case .GS        : return "]"
+        case .RS        : return "^"
+        case .US        : return "_"
+        case .DEL       : return "?"
+      }
+    }
+
     public init? ( byte: UInt8 ) {
       switch byte {
         case 0x00 : self = .NULL
