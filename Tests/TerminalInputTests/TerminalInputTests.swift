@@ -14,6 +14,20 @@ final class TerminalInputTests: XCTestCase {
     XCTAssertEqual(tokens, [ .control(.BEL) ])
   }
 
+  func testControlKeyControlChordMappings () {
+    let letterChord : Character? = "A"
+    let tabChord    : Character? = "I"
+    let returnChord : Character? = "M"
+    let deleteChord : Character? = "?"
+    let nullChord   : Character? = "@"
+
+    XCTAssertEqual(TerminalInput.ControlKey.SOH.controlChord, letterChord)
+    XCTAssertEqual(TerminalInput.ControlKey.TAB.controlChord, tabChord)
+    XCTAssertEqual(TerminalInput.ControlKey.RETURN.controlChord, returnChord)
+    XCTAssertEqual(TerminalInput.ControlKey.DEL.controlChord, deleteChord)
+    XCTAssertEqual(TerminalInput.ControlKey.NULL.controlChord, nullChord)
+  }
+
   func testEscapeKeyEmission () {
     let tokens = captureTokens(from: Data([0x1B]))
     XCTAssertEqual(tokens, [ .escape ])
