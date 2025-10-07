@@ -89,10 +89,11 @@ Your application is free to set the `dispatch` closure to `nil` at any time if y
 `TerminalInput.Token` is the core representation of user intent. Each case wraps a more specific type:
 
 * `.text(String)` – Printable characters decoded as UTF-8.
-* `.control(ControlKey)` – ASCII control codes (e.g. `.TAB`, `.RETURN`, `.ESC`).
+* `.control(ControlKey)` – ASCII control codes (e.g. `.TAB`, `.RETURN`).
 * `.cursor(CursorKey)` – Navigation keys such as `.up`, `.down`, `.home`, and `.pageDown`.
 * `.function(FunctionKey)` – Function keys (`.f(1)` through `.f(n)`), `.insert`, `.delete`, and `.unknown` for unusual sequences.
-* `.meta(MetaKey)` – Meta/alt combinations (e.g. `alt("x")`) or the bare escape key.
+* `.escape` – The standalone escape key or the ESC prefix that announces a control byte.
+* `.meta(MetaKey)` – Meta/alt combinations (e.g. `alt("x")`).
 * `.response(TerminalResponse)` – Asynchronous replies from the terminal such as cursor position reports or device attributes.
 * `.ansi(AnsiFormat)` – Select Graphic Rendition (SGR) sequences that modify colors and text styles.
 * `.mouse(MouseEvent)` – Pointer interactions including button presses, drags, and scroll events.
@@ -102,7 +103,7 @@ Your application is free to set the `dispatch` closure to `nil` at any time if y
 * `ControlKey` enumerates the classic ASCII control characters from `NULL` through `DEL`.
 * `CursorKey` covers the arrow cluster plus `home`, `end`, `pageUp`, and `pageDown`.
 * `FunctionKey` represents the numbered function keys, insert/delete, or stores the raw sequence when it cannot be classified.
-* `MetaKey` distinguishes between a standalone escape (`.escape`) and an alt-modified character (`.alt(Character)`).
+* `MetaKey` represents an alt-modified character (`.alt(Character)`).
 
 ### Terminal Responses
 

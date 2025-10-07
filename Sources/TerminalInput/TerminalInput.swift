@@ -30,6 +30,7 @@ public final class TerminalInput {
     case control(ControlKey)
     case cursor(CursorKey)
     case function(FunctionKey)
+    case escape
     case meta(MetaKey)
     case response(TerminalResponse)
     case ansi(AnsiFormat)
@@ -137,10 +138,9 @@ public final class TerminalInput {
   }
 
   /// Escape-derived combinations, such as pressing the option/alt key in
-  /// conjunction with a printable character, or the escape key by itself.
+  /// conjunction with a printable character.
   public enum MetaKey : Equatable {
     case alt(Character)
-    case escape
   }
 
   /// Messages sent from the terminal to report internal state.  These are most
@@ -269,7 +269,7 @@ public final class TerminalInput {
   /// Reference: Xterm Control Sequences, “Escape Sequences” overview.
   /// https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
   private func parseEscapeSequence () -> ParseResult {
-    guard buffer.count > 1 else { return .token( .meta(.escape), 1 ) }
+    guard buffer.count > 1 else { return .token( .escape, 1 ) }
     let indicator = buffer[1]
     switch indicator {
       case 0x5B : return parseCSISequence()
@@ -286,7 +286,7 @@ public final class TerminalInput {
     guard buffer.count > 1 else { return .needMore }
     let indicator = buffer[1]
     if indicator < 0x20 {
-      return .token( .meta(.escape), 1 )
+      return .token( .escape, 1 )
     }
     let length = 2
     let scalar    = UnicodeScalar(indicator)

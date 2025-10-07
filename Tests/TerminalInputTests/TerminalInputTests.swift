@@ -14,6 +14,17 @@ final class TerminalInputTests: XCTestCase {
     XCTAssertEqual(tokens, [ .control(.BEL) ])
   }
 
+  func testEscapeKeyEmission () {
+    let tokens = captureTokens(from: Data([0x1B]))
+    XCTAssertEqual(tokens, [ .escape ])
+  }
+
+  func testEscapeBeforeControlCharacter () {
+    let data   = Data([0x1B, 0x01])
+    let tokens = captureTokens(from: data)
+    XCTAssertEqual(tokens, [ .escape, .control(.SOH) ])
+  }
+
   func testArrowKeyParsing () {
     let data    = Data([0x1B, 0x5B, 0x41])
     let tokens  = captureTokens(from: data)
